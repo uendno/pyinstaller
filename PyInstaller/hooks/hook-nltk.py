@@ -17,7 +17,7 @@ from PyInstaller.utils.hooks import collect_data_files
 
 # loop through the data directories and add them
 # for p in nltk.data.path:
-    datas.append((p, "nltk_data"))
+#    datas.append((p, "nltk_data"))
 
 # nltk.chunk.named_entity should be included
 hiddenimports = ["nltk.chunk.named_entity"]

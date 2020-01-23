@@ -230,7 +230,9 @@ class PKG(Target):
                 # file is contained within python egg, it is added with the egg
                 continue
             if typ in ('BINARY', 'EXTENSION', 'DEPENDENCY'):
-                if not self.exclude_binaries:
+                if self.exclude_binaries and typ != 'DEPENDENCY':
+                    self.dependencies.append((inm, fnm, typ))
+                else:
                     if typ == 'BINARY':
                         # Avoid importing the same binary extension twice. This might
                         # happen if they come from different sources (eg. once from
@@ -422,8 +424,7 @@ class EXE(Target):
                                  "", "OPTION"))
 
             if self.versrsrc:
-                if (not isinstance(self.versrsrc, versioninfo.VSVersionInfo)
-                    and not os.path.isabs(self.versrsrc)):
+                if not os.path.isabs(self.versrsrc):
                     # relative version-info path is relative to spec file
                     self.versrsrc = os.path.join(
                         CONF['specpath'], self.versrsrc)
@@ -526,11 +527,7 @@ class EXE(Target):
 
 
         if is_win and (self.icon or self.versrsrc or self.resources):
-            fd, tmpnm = tempfile.mkstemp(prefix=os.path.basename(exe) + ".",
-                                         dir=CONF['workpath'])
-            # need to close the file, otherwise copying resources will fail
-            # with "the file [...] is being used by another process"
-            os.close(fd)
+            tmpnm = tempfile.mktemp()
             self._copyfile(exe, tmpnm)
             os.chmod(tmpnm, 0o755)
             if self.icon:

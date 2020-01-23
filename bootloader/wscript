@@ -46,7 +46,6 @@ variants = {
 DESTOS_TO_SYSTEM = {
     'linux': 'Linux',
     'freebsd': 'FreeBSD',
-    'openbsd': 'OpenBSD',
     'win32': 'Windows',
     'darwin': 'Darwin',
     'sunos': platform.system(),  ## FIXME: inhibits cross-compile
@@ -192,7 +191,7 @@ def set_lsb_compiler(ctx):
     ## check LSBCC flags
     # --lsb-besteffort - binary will work on platforms without LSB stuff
     # --lsb-besteffort - available in LSB build tools >= 4.0
-    ctx.check_cc(cflags='--lsb-besteffort',
+    ctx.check_cc(ccflags='--lsb-besteffort',
                  msg='Checking for LSB build tools >= 4.0',
                  errmsg='LSB >= 4.0 is required', mandatory=True)
     ctx.env.append_value('CFLAGS', '--lsb-besteffort')
@@ -248,14 +247,12 @@ def detect_arch(ctx):
     if ctx.options.target_arch:
         arch = ctx.options.target_arch
         ctx.msg('Platform', '%s-%s manually chosen' % (system, arch))
-        ctx.env.ARCH_FLAGS_REQUIRED = True
     else:
         # PyInstaller uses the result of platform.architecture() to determine
         # the bits and this is testing the pointer size (via module struct).
         # We do the same here.
         arch = "%sbit" % (8 * check_sizeof_pointer(ctx))
         ctx.msg('Platform', '%s-%s detected based on compiler' % (system, arch))
-        ctx.env.ARCH_FLAGS_REQUIRED = False
 
     # Pass return values as environment variables.
     ctx.env.PYI_ARCH = arch  # '32bit' or '64bit'
@@ -268,12 +265,6 @@ def set_arch_flags(ctx):
     Set properly architecture flag (32 or 64 bit) cflags for compiler
     and CPU target for compiler.
     """
-    def check_arch_cflag(cflag32, cflag64):
-        cflag = cflag32 if ctx.env.PYI_ARCH == '32bit' else cflag64
-        if ctx.check_cc(cflags=cflag, mandatory=ctx.env.ARCH_FLAGS_REQUIRED):
-            ctx.env.append_value('CFLAGS', cflag)
-            ctx.env.append_value('LINKFLAGS', cflag)
-
     if ctx.env.DEST_OS == 'win32' and ctx.env.CC_NAME == 'msvc':
         # Set msvc linkflags based on architecture.
         if ctx.env.PYI_ARCH == '32bit':
@@ -306,21 +297,56 @@ def set_arch_flags(ctx):
     # AIX specific flags
     elif ctx.env.DEST_OS == 'aix':
         if ctx.env.CC_NAME == 'gcc':
-            check_arch_cflag('-maix32', '-maix64')
+            if ctx.env.PYI_ARCH == '32bit':
+                ctx.check_cc(ccflags='-maix32', msg='Checking for flags -maix32')
+                ctx.env.append_value('CFLAGS', '-maix32')
+                ctx.env.append_value('LINKFLAGS', '-maix32')
+            else:
+                ctx.check_cc(ccflags='-maix64', msg='Checking for flags -maix64')
+                ctx.env.append_value('CFLAGS', '-maix64')
+                ctx.env.append_value('LINKFLAGS', '-maix64')
         else:
             # We are using AIX/xlc compiler
-            check_arch_cflag('-q32', '-q64')
+            if ctx.env.PYI_ARCH == '32bit':
+                ctx.check_cc(ccflags='-q32', msg='Checking for flags -q32')
+                ctx.env.append_value('CFLAGS', '-q32')
+                ctx.env.append_value('LINKFLAGS', '-q32')
+            else:
+                ctx.check_cc(ccflags='-q64', msg='Checking for flags -q64')
+                ctx.env.append_value('CFLAGS', '-q64')
+                ctx.env.append_value('LINKFLAGS', '-q64')
 
     elif ctx.env.DEST_OS == 'sunos':
         if ctx.env.CC_NAME == 'gcc':
-            check_arch_cflag('-m32', '-m64')
+            if ctx.env.PYI_ARCH == '32bit':
+                ctx.check_cc(ccflags='-m32', msg='Checking for flags -m32')
+                ctx.env.append_value('CFLAGS', '-m32')
+                ctx.env.append_value('LINKFLAGS', '-m32')
+            else:
+                ctx.check_cc(ccflags='-m64', msg='Checking for flags -m64')
+                ctx.env.append_value('CFLAGS', '-m64')
+                ctx.env.append_value('LINKFLAGS', '-m64')
         else:
             # We use SUNWpro C compiler
-            check_arch_cflag('-xarch=generic', '-xarch=v9')
+            if ctx.env.PYI_ARCH == '32bit':
+                ctx.check_cc(ccflags='-xarch=generic', msg='Checking for flags -xarch=generic')
+                ctx.env.append_value('CFLAGS', '-xarch=generic')
+                ctx.env.append_value('LINKFLAGS', '-xarch=generic')
+            else:
+                ctx.check_cc(ccflags='-xarch=v9', msg='Checking for flags -xarch=v9')
+                ctx.env.append_value('CFLAGS', '-xarch=v9')
+                ctx.env.append_value('LINKFLAGS', '-xarch=v9')
 
     elif ctx.env.DEST_OS == 'hpux':
         if ctx.env.CC_NAME == 'gcc':
-            check_arch_cflag('-milp32', '-mlp64')
+            if ctx.env.PYI_ARCH == '32bit':
+                ctx.check_cc(ccflags='-milp32', msg='Checking for flags -milp32')
+                ctx.env.append_value('CFLAGS', '-milp32')
+                ctx.env.append_value('LINKFLAGS', '-milp32')
+            else:
+                ctx.check_cc(ccflags='-mlp64', msg='Checking for flags -mlp64')
+                ctx.env.append_value('CFLAGS', '-mlp64')
+                ctx.env.append_value('LINKFLAGS', '-mlp64')
         else:
             # We use xlc compiler
             pass
@@ -335,8 +361,12 @@ def set_arch_flags(ctx):
         # or vice versa or with manually choosen --target-arch.
         # Option -m32/-m64 has to be passed to cflags and linkflages.
         elif ctx.env.PYI_ARCH == '32bit':
-            if ctx.check_cc(cflags='-m32',
-                            mandatory=ctx.env.ARCH_FLAGS_REQUIRED):
+            if machine() in ('arm', 'aarch') and ctx.env.DEST_OS == 'linux':
+                # It was reported that flag '-m32' does not work with gcc
+                # on 32-bit arm Linux. So skip the -m32 flag.
+                pass
+            else:
+                ctx.check_cc(ccflags='-m32', msg='Checking for flags -m32')
                 ctx.env.append_value('CFLAGS', '-m32')
                 ctx.env.append_value('LINKFLAGS', '-m32')
             # Set LARGE_ADDRESS_AWARE_FLAG to True.
@@ -347,8 +377,11 @@ def set_arch_flags(ctx):
             if ctx.env.DEST_OS == 'win32':
                 ctx.env.append_value('LINKFLAGS', '-Wl,--large-address-aware')
         elif ctx.env.PYI_ARCH == '64bit':
-            if ctx.check_cc(cflags='-m64',
-                            mandatory=ctx.env.ARCH_FLAGS_REQUIRED):
+            if machine() in ('arm', 'aarch') and ctx.env.DEST_OS == 'linux':
+                # flag '-m64' does not work with gcc on 64-bit arm/aarch Linux.
+                pass
+            else:
+                ctx.check_cc(ccflags='-m64', msg='Checking for flags -m64')
                 ctx.env.append_value('CFLAGS', '-m64')
                 ctx.env.append_value('LINKFLAGS', '-m64')
         else:
@@ -422,6 +455,17 @@ def configure(ctx):
             # files. For msvc waf loads this tool automatically
             ctx.find_program([assoc_programm(ctx, 'windres')], var='WINRC')
             ctx.load('winres')
+
+    if ctx.env.CC_NAME != 'msvc':
+        # This tool allows reducing the size of executables.
+        ctx.find_program([assoc_programm(ctx, 'strip')], var='STRIP')
+        ctx.load('strip', tooldir='tools')
+        # There is a strip flag for AIX environment
+        if ctx.env.DEST_OS == 'aix':
+            if ctx.env.PYI_ARCH == '32bit':
+                ctx.env.append_value('STRIPFLAGS', '-X32')
+            elif ctx.env.PYI_ARCH == '64bit':
+                ctx.env.append_value('STRIPFLAGS', '-X64')
 
     ### C Compiler optimizations.
     # TODO Set proper optimization flags for MSVC (Visual Studio).
@@ -549,7 +593,7 @@ def configure(ctx):
     else:
         # Mac OS X and FreeBSD do not need libdl.
         # https://stackoverflow.com/questions/20169660/where-is-libdl-so-on-mac-os-x
-        if ctx.env.DEST_OS not in ('darwin', 'freebsd', 'openbsd'):
+        if ctx.env.DEST_OS not in ('darwin', 'freebsd'):
             ctx.check_cc(lib='dl', mandatory=True)
         if ctx.env.DEST_OS == 'freebsd' and sysconfig.get_config_var('HAVE_PTHREAD_H'):
             # On FreeBSD if python has threads: libthr needs to be loaded in
@@ -574,7 +618,7 @@ def configure(ctx):
     # supported. This code is based on old waf source at
     # https://gitlab.com/ita1024/waf/commit/62fe305d04ed37b1be1a3327a74b2fee6c458634#255b2344e5268e6a34bedd2f8c4680798344fec7.
     SNIP_FUNCTION = '''
-    #include <%s>
+    #include <stdlib.h>
 
     int main(int argc, char **argv) {
         void (*p)();
@@ -585,12 +629,9 @@ def configure(ctx):
     }
 '''
     # OS support for these functions varies.
-    for header, function_name in (('stdlib.h', 'unsetenv'),
-                                  ('stdlib.h', 'mkdtemp'),
-                                  ('string.h', 'strndup'),
-                                  ('string.h', 'strnlen')):
+    for function_name in ('unsetenv', 'mkdtemp'):
         ctx.check(
-            fragment=SNIP_FUNCTION % (header, function_name),
+            fragment=SNIP_FUNCTION % function_name,
             mandatory=False,
             define_name=ctx.have_define(function_name),
             msg='Checking for function %s' % function_name)
@@ -623,19 +664,9 @@ def configure(ctx):
     # On linux link only with needed libraries.
     # -Wl,--as-needed is on some platforms detected during configure but
     # fails during build. (Mac OS X, Solaris, AIX)
-    if ctx.env.DEST_OS == 'linux' and ctx.check_cc(cflags='-Wl,--as-needed'):
+    if ctx.env.DEST_OS == 'linux' and ctx.check_cc(ccflags='-Wl,--as-needed',
+                                 msg='Checking for flags -Wl,--as-needed'):
         ctx.env.append_value('LINKFLAGS', '-Wl,--as-needed')
-
-    if ctx.env.CC_NAME != 'msvc':
-        # This tool allows reducing the size of executables.
-        ctx.find_program([assoc_programm(ctx, 'strip')], var='STRIP')
-        ctx.load('strip', tooldir='tools')
-        # There is a strip flag for AIX environment
-        if ctx.env.DEST_OS == 'aix':
-            if ctx.env.PYI_ARCH == '32bit':
-                ctx.env.append_value('STRIPFLAGS', '-X32')
-            elif ctx.env.PYI_ARCH == '64bit':
-                ctx.env.append_value('STRIPFLAGS', '-X64')
 
     def windowed(name, baseenv):
         """Setup windowed environment based on `baseenv`."""

@@ -492,11 +492,7 @@ def add_qt5_dependencies(hook_file):
         # On Windows, find this library; other platforms already provide the
         # full path.
         if is_win:
-            imp = getfullnameof(imp,
-                # First, look for Qt binaries in the local Qt install.
-                pyqt5_library_info.location['BinariesPath'] if is_PyQt5 else
-                pyside2_library_info.location['BinariesPath']
-            )
+            imp = getfullnameof(imp)
 
         # Strip off the extension and ``lib`` prefix (Linux/Mac) to give the raw
         # name. Lowercase (since Windows always normalized names to lowercase).
@@ -556,7 +552,7 @@ def add_qt5_dependencies(hook_file):
                 src, os.path.join(
                     # The PySide2 Windows wheels place translations in a
                     # different location.
-                    namespace, '' if not is_PyQt5 and is_win else 'Qt',
+                    namespace, 'Qt' if is_PyQt5 and not is_win else '',
                     'translations'
                 )
             ))
@@ -590,7 +586,11 @@ def find_all_or_none(globs_to_include, num_files, qt_library_info):
     # Since old PyQt5 wheels do not include d3dcompiler_4?.dll, libEGL.dll and
     # libGLESv2.dll will not be included for PyQt5 builds during CI.
     to_include = []
-    dst_dll_path = '.'
+    dst_dll_path = (
+        os.path.join('PyQt5', 'Qt', 'bin')
+        if qt_library_info.is_PyQt5
+        else 'PySide2'
+    )
     for dll in globs_to_include:
         dll_path = os.path.join(qt_library_info.location[
             'BinariesPath' if qt_library_info.is_PyQt5 else 'PrefixPath'

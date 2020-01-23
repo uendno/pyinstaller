@@ -1,2 +1,2 @@
 Please refer to the [Development
-Guide](https://pyinstaller.readthedocs.io/en/latest/development/).
+Guide](https://github.com/pyinstaller/pyinstaller/wiki/Development).

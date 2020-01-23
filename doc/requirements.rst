@@ -39,8 +39,8 @@ and the ``objcopy`` terminal application to append data to the
 bootloader.
 These are typically found in the distribution-package ``binutils``.
 
-AIX, Solaris, FreeBSD and OpenBSD
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+AIX, Solaris, and FreeBSD
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Users have reported success running |PyInstaller| on these platforms,
 but it is not tested on them.

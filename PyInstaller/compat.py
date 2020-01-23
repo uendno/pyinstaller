@@ -31,8 +31,8 @@ is_py3 = sys.version_info[0] == 3
 is_64bits = sys.maxsize > 2**32
 # Distinguish specific code for various Python versions.
 is_py27 = sys.version_info >= (2, 7) and sys.version_info < (3, 0)
+# PyInstaller supports only Python 3.4+
 # Variables 'is_pyXY' mean that Python X.Y and up is supported.
-# Keep even unsupported versions here to keep 3rd-party hooks working.
 is_py35 = sys.version_info >= (3, 5)
 is_py36 = sys.version_info >= (3, 6)
 is_py37 = sys.version_info >= (3, 7)
@@ -47,14 +47,13 @@ is_linux = sys.platform.startswith('linux')
 is_solar = sys.platform.startswith('sun')  # Solaris
 is_aix = sys.platform.startswith('aix')
 is_freebsd = sys.platform.startswith('freebsd')
-is_openbsd = sys.platform.startswith('openbsd')
 is_hpux = sys.platform.startswith('hp-ux')
 
 # Some code parts are similar to several unix platforms
 # (e.g. Linux, Solaris, AIX)
 # Mac OS X is not considered as unix since there are many
 # platform specific details for Mac in PyInstaller.
-is_unix = is_linux or is_solar or is_aix or is_freebsd or is_hpux or is_openbsd
+is_unix = is_linux or is_solar or is_aix or is_freebsd or is_hpux
 
 
 # On different platforms is different file for dynamic python library.
@@ -80,9 +79,6 @@ elif is_freebsd:
                      'libpython%d.%dm.so.1' % _pyver,
                      'libpython%d.%d.so.1.0' % _pyver,
                      'libpython%d.%dm.so.1.0' % _pyver}
-elif is_openbsd:
-    PYDYLIB_NAMES = {'libpython%d.%d.so.0.0' % _pyver,
-                     'libpython%d.%dm.so.0.0' % _pyver}
 elif is_hpux:
     PYDYLIB_NAMES = {'libpython%d.%d.so' % _pyver}
 elif is_unix:
@@ -145,8 +141,10 @@ else:
 
 # Python 3 moved collections classes to more sensible packages.
 if is_py2:
+    from UserDict import UserDict
     from collections import Sequence, Set
 else:
+    from collections import UserDict
     from collections.abc import Sequence, Set
 
 # In Python 3 built-in function raw_input() was renamed to just 'input()'.
@@ -223,7 +221,7 @@ else:
 
 # List of suffixes for Python C extension modules.
 try:
-    # In Python 3.3+ there is a list
+    # In Python 3.4+ There is a list
     from importlib.machinery import EXTENSION_SUFFIXES, all_suffixes
     ALL_SUFFIXES = all_suffixes()
 except ImportError:
@@ -838,7 +836,7 @@ PY3_BASE_MODULES = {
     'warnings',
 }
 
-if is_py3:
+if sys.version_info >= (3, 4):
     PY3_BASE_MODULES.update({
         '_bootlocale',
         '_collections_abc',
@@ -928,8 +926,8 @@ def check_requirements():
     Fail hard if any requirement is not met.
     """
     # Fail hard if Python does not have minimum required version
-    if sys.version_info < (3, 5) and sys.version_info[:2] != (2, 7):
-        raise SystemExit('PyInstaller requires at least Python 2.7 or 3.5+.')
+    if sys.version_info < (3, 4) and sys.version_info[:2] != (2, 7):
+        raise SystemExit('PyInstaller requires at least Python 2.7 or 3.4+.')
 
 
 if not is_py3:

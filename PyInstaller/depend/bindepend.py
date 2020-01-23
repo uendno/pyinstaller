@@ -23,8 +23,8 @@ import collections
 from .. import compat
 from ..compat import (is_win, is_win_10, is_unix,
                       is_aix, is_solar, is_cygwin, is_hpux,
-                      is_darwin, is_freebsd, is_venv, is_conda, base_prefix,
-                      PYDYLIB_NAMES)
+                      is_darwin, is_freebsd, is_openbsd, is_venv, is_conda,
+                      base_prefix, PYDYLIB_NAMES)
 from . import dylib, utils
 
 from .. import log as logging
@@ -81,11 +81,6 @@ def getfullnameof(mod, xtrapath=None):
         npth = os.path.join(p, mod)
         if os.path.exists(npth) and matchDLLArch(npth):
             return npth
-        # second try: lower case filename
-        for p in epath:
-            npth = os.path.join(p, mod.lower())
-            if os.path.exists(npth) and matchDLLArch(npth):
-                return npth
     return ''
 
 
@@ -815,7 +810,7 @@ def findLibrary(name):
                 paths.append('/usr/local/lib/hpux32')
             else:
                 paths.append('/usr/local/lib/hpux64')
-        elif is_freebsd:
+        elif is_freebsd or is_openbsd:
             paths.append('/usr/local/lib')
         for path in paths:
             libs = glob(os.path.join(path, name + '*'))
@@ -828,7 +823,7 @@ def findLibrary(name):
         return None
 
     # Resolve the file name into the soname
-    if is_freebsd or is_aix:
+    if is_freebsd or is_aix or is_openbsd:
         # On FreeBSD objdump doesn't show SONAME,
         # and on AIX objdump does not exist,
         # so we just return the lib we've found
@@ -846,7 +841,11 @@ def _get_so_name(filename):
     """
     # TODO verify that objdump works on other unixes and not Linux only.
     cmd = ["objdump", "-p", filename]
-    m = re.search(r'\s+SONAME\s+([^\s]+)', compat.exec_command(*cmd))
+    pattern = r'\s+SONAME\s+([^\s]+)'
+    if is_solar:
+        cmd = ["elfdump", "-d", filename]
+        pattern = r'\s+SONAME\s+[^\s]+\s+([^\s]+)'
+    m = re.search(pattern, compat.exec_command(*cmd))
     return m.group(1)
 
 
@@ -931,8 +930,18 @@ def get_python_library_path():
         if python_libname:
             return python_libname
 
-    # Python library NOT found. Return just None.
-    return None
+    # Python library NOT found. Provide helpful feedback.
+    msg = """Python library not found: %s
+    This would mean your Python installation doesn't come with proper library files.
+    This usually happens by missing development package, or unsuitable build parameters of Python installation.
+
+    * On Debian/Ubuntu, you would need to install Python development packages
+      * apt-get install python3-dev
+      * apt-get install python-dev
+    * If you're building Python by yourself, please rebuild your Python with `--enable-shared` (or, `--enable-framework` on Darwin)
+    """ % (", ".join(PYDYLIB_NAMES),)
+    raise IOError(msg)
+
 
 def findSystemLibrary(name):
     '''

@@ -7,14 +7,6 @@
 # The full license is in the file COPYING.txt, distributed with this software.
 #-----------------------------------------------------------------------------
 
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtWebKitWidgets import QWebView
-from PyQt5.QtCore import QTimer
+from PyInstaller.utils.hooks import copy_metadata
 
-app = QApplication([])
-view = QWebView()
-view.show()
-# Exit Qt when the main loop becomes idle.
-QTimer.singleShot(0, app.exit)
-# Run the main loop, displaying the WebKit widget.
-app.exec_()
+datas = copy_metadata('webrtcvad')
